@@ -91,6 +91,7 @@ const planActivities = createStep({
   description: 'Suggests activities based on weather conditions',
   inputSchema: forecastSchema,
   outputSchema: z.object({
+    forecast: forecastSchema,
     activities: z.string(),
   }),
   execute: async ({ inputData, mastra }) => {
@@ -162,7 +163,65 @@ const planActivities = createStep({
     }
 
     return {
+      forecast,
       activities: activitiesText,
+    };
+  },
+});
+
+const planPacking = createStep({
+  id: 'plan-packing',
+  description: 'Suggests what to pack based on the forecast and planned activities',
+  inputSchema: z.object({
+    forecast: forecastSchema,
+    activities: z.string(),
+  }),
+  outputSchema: z.object({
+    activities: z.string(),
+    packingAdvice: z.string(),
+  }),
+  execute: async ({ inputData, mastra }) => {
+    if (!inputData) {
+      throw new Error('Activities data not found');
+    }
+
+    const agent = mastra?.getAgent('packingAgent');
+    if (!agent) {
+      throw new Error('Packing agent not found');
+    }
+
+    const prompt = `Based on this forecast and these planned activities, provide a short packing checklist and one or two practical tips.
+
+Forecast:
+${JSON.stringify(inputData.forecast, null, 2)}
+
+Activities:
+${inputData.activities}
+
+Respond with exactly these sections:
+Packing checklist:
+- item
+
+Practical tips:
+- tip`;
+
+    const response = await agent.stream([
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ]);
+
+    let packingAdviceText = '';
+
+    for await (const chunk of response.textStream) {
+      process.stdout.write(chunk);
+      packingAdviceText += chunk;
+    }
+
+    return {
+      activities: inputData.activities,
+      packingAdvice: packingAdviceText,
     };
   },
 });
@@ -174,10 +233,12 @@ const weatherWorkflow = createWorkflow({
   }),
   outputSchema: z.object({
     activities: z.string(),
+    packingAdvice: z.string(),
   }),
 })
   .then(fetchWeather)
-  .then(planActivities);
+  .then(planActivities)
+  .then(planPacking);
 
 weatherWorkflow.commit();
 

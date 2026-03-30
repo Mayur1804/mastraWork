@@ -1,10 +1,8 @@
 # Phase 1 — Must ship (30+ metrics)
 
-Implement these first to get strong visibility into correctness, cost, reliability, performance bottlenecks, and human escalation. Each metric below includes a short description and a one-line example you can show your manager.
-
 ## Core Business Metrics (Critical for Client Impression)
 
-- Task Success Rate: Percentage of workflow runs that produce a business-acceptable compensation outcome.
+- Task Success Rate: Percentage of workflow runs that produce a business acceptable outcome.
 	- Example: 170 successful outcomes out of 200 runs → Task Success Rate = 85%.
 
 - Per-Run Cost: Total dollars charged for a single completed and accepted workflow (model calls + infra charges allocated to the run).
@@ -13,8 +11,8 @@ Implement these first to get strong visibility into correctness, cost, reliabili
 - Total Model Spend: Aggregated spend on model provider calls over a reporting window (day/week/month).
 	- Example: This week’s model spend across tenants = $2,400.
 
-- Compensation Calculation Accuracy: Percentage of automation outputs that match domain validation rules or HR expected ranges.
-	- Example: 90% of automated compensation calculations are within ±5% of expected HR values.
+- Compensation Calculation Accuracy: Percentage of automation outputs that match domain validation rules or expected ranges.
+	- Example: 90% of automated compensation calculations are within ±5% of expected.
 
 - Hallucination Rate: Percentage of outputs flagged by automated validators or humans as incorrect facts or invented details.
 	- Example: 3 hallucinations found in 120 reviews → Hallucination Rate = 2.5%.
@@ -37,7 +35,7 @@ Implement these first to get strong visibility into correctness, cost, reliabili
 	- Example: Average Time to First Token = 250ms for streaming responses.
 
 - External Dependency Latency (p95): Time spent waiting on external services (DBs, KBs, search, tool invocations) per run.
-	- Example: KB retrieval p95 = 480ms; DB lookup p95 = 120ms.
+	- Example: Knowledge Base retrieval p95 = 480ms; DB lookup p95 = 120ms.
 
 - Plan Generation Time (p50/p95): Time to generate the initial plan/subplan that the agent will execute.
 	- Example: Plan gen p50=600ms, p95=2.2s.

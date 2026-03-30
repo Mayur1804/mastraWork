@@ -3,7 +3,19 @@
     "mastra": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@mastra/mcp-docs-server@latest"]
+      "args": [
+        "-y",
+        "@mastra/mcp-docs-server@latest"
+      ]
+    },
+    "datadog": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=llmobs,core",
+      "headers": {
+          "DD_API_KEY": "${env:DD_API_KEY}",
+          "DD_APPLICATION_KEY": "${env:DD_APP_KEY}"
+        }
     }
-  }
+  },
+  "inputs": []
 }

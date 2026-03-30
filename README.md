@@ -25,3 +25,22 @@ If you're new to AI agents, check out our [course](https://mastra.ai/course) and
 [Mastra Cloud](https://cloud.mastra.ai/) gives you a serverless agent environment with atomic deployments. Access your agents from anywhere and monitor performance. Make sure they don't go off the rails with evals and tracing.
 
 Check out the [deployment guide](https://mastra.ai/docs/deployment/overview) for more details.
+
+## Datadog LLM Observability
+
+This project includes a lightweight Datadog integration to send LLM interaction logs to Datadog. To enable it, set the following environment variables (copy `.env.example` to `.env`):
+
+```shell
+DD_API_KEY=<your_datadog_api_key>
+DD_SITE=datadoghq.com
+DD_ENV=development
+```
+
+Then install dependencies and run the dev server:
+
+```shell
+npm install
+npm run dev
+```
+
+The integration posts structured LLM interaction logs to Datadog's logs intake if `DD_API_KEY` is present. You can customize behavior in `src/mastra/observability/datadog-llm.ts`.

@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 type MetricRecord = {
   type?: 'workflow';
@@ -8,6 +10,7 @@ type MetricRecord = {
   startTime?: string;
   endTime?: string;
   durationMs?: number;
+  duration?: string;
   status?: string;
   input?: any;
   output?: any;
@@ -22,15 +25,49 @@ type AgentMetricRecord = {
   startTime?: string;
   endTime?: string;
   durationMs?: number;
+  duration?: string;
   input?: any;
   output?: any;
   error?: any;
   usage?: any;
 };
 
-// Resolve baseDir relative to process.cwd() so it always lands in the project
-// root regardless of how the Mastra server was started.
-const baseDir = path.join(process.cwd(), 'WorkflowMetrics', 'runs');
+
+function findRepoRoot(): string {
+  // Walk up from this module's location, skipping .mastra build dirs
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 10; i++) {
+    const isBuildDir = /[/\\]\.mastra([/\\]|$)/.test(dir);
+    if (!isBuildDir) {
+      try {
+        if (fsSync.existsSync(path.join(dir, 'package.json'))) return dir;
+      } catch {}
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fallback: walk up from process.cwd()
+  dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    try {
+      if (fsSync.existsSync(path.join(dir, 'package.json'))) return dir;
+    } catch {}
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+const baseDir = process.env.WORKFLOW_METRICS_DIR
+  ? path.resolve(process.env.WORKFLOW_METRICS_DIR)
+  : path.join(findRepoRoot(), 'workflowMetrics', 'runs');
+
+if (process.env.DEBUG_WORKFLOW_METRICS) {
+  // eslint-disable-next-line no-console
+  console.log('[WorkflowMetrics] baseDir resolved to', baseDir);
+}
 
 async function ensureDir() {
   await fs.mkdir(baseDir, { recursive: true });
@@ -46,6 +83,12 @@ function serializeError(err: any) {
   } catch (e) {
     return String(err);
   }
+}
+
+function formatDuration(ms?: number) {
+  if (ms === undefined || ms === null) return undefined;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(3)}s`;
 }
 
 export async function recordStart(runId: string, workflowId: string, input?: any) {
@@ -72,6 +115,7 @@ export async function recordEnd(runId: string, data: { output?: any; status?: st
 
   rec.endTime = endTime;
   rec.durationMs = durationMs;
+  rec.duration = formatDuration(durationMs);
   if (data.status) rec.status = data.status;
   if (data.output !== undefined) rec.output = data.output;
   if (data.error !== undefined) rec.error = serializeError(data.error);
@@ -142,6 +186,7 @@ export async function recordAgentEnd(
 
   rec.endTime = endTime;
   rec.durationMs = durationMs;
+  rec.duration = formatDuration(durationMs);
   if (data.output !== undefined) rec.output = data.output;
   if (data.error !== undefined) rec.error = serializeError(data.error);
   if (data.usage !== undefined) rec.usage = data.usage;

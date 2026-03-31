@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { weatherTool } from '../tools/weather-tool';
 import { scorers } from '../scorers/weather-scorer';
+import { recordAgentEnd } from '../WorkflowMetrics/metrics';
 
 export const weatherAgent = new Agent({
   id: 'weather-agent',
@@ -46,4 +47,19 @@ export const weatherAgent = new Agent({
     },
   },
   memory: new Memory(),
+  defaultOptions: {
+    onFinish: async (result: any) => {
+      // Captures metrics for direct agent runs (e.g. from Mastra Studio).
+      // Workflow-based runs are tracked individually in each workflow step.
+      const runId = crypto.randomUUID();
+      try {
+        await recordAgentEnd('weather-agent', runId, {
+          output: result?.text,
+          usage: result?.usage,
+        });
+      } catch (err) {
+        console.error('Failed to record weather-agent end metrics', err);
+      }
+    },
+  },
 });

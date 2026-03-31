@@ -1,5 +1,6 @@
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
+import { recordStart, recordEnd, recordAgentStart, recordAgentEnd } from '../WorkflowMetrics/metrics';
 
 const forecastSchema = z.object({
   date: z.string(),
@@ -31,6 +32,24 @@ function getWeatherCondition(code: number): string {
   };
   return conditions[code] || 'Unknown';
 }
+
+const metricsStart = createStep({
+  id: 'metrics-start',
+  description: 'Record workflow start',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ city: z.string() }),
+  execute: async ({ runId, workflowId, inputData }) => {
+    try {
+      await recordStart(runId, workflowId, inputData);
+    } catch (err) {
+      // do not block workflow on metrics failure
+      // eslint-disable-next-line no-console
+      console.error('Failed to record workflow start', err);
+    }
+
+    return inputData as any;
+  },
+});
 
 const fetchWeather = createStep({
   id: 'fetch-weather',
@@ -94,7 +113,7 @@ const planActivities = createStep({
     forecast: forecastSchema,
     activities: z.string(),
   }),
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, runId }) => {
     const forecast = inputData;
 
     if (!forecast) {
@@ -106,6 +125,7 @@ const planActivities = createStep({
       throw new Error('Weather agent not found');
     }
 
+    const agentRunId = `${runId}-plan-activities`;
     const prompt = `Based on the following weather forecast for ${forecast.location}, suggest appropriate activities:
       ${JSON.stringify(forecast, null, 2)}
       For each day in the forecast, structure your response exactly as follows:
@@ -148,18 +168,25 @@ const planActivities = createStep({
 
       Maintain this exact formatting for consistency, using the emoji and section headers as shown.`;
 
-    const response = await agent.stream([
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ]);
+    await recordAgentStart('weather-agent', agentRunId, { location: forecast.location });
 
     let activitiesText = '';
+    try {
+      const response = await agent.stream([
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ]);
 
-    for await (const chunk of response.textStream) {
-      process.stdout.write(chunk);
-      activitiesText += chunk;
+      for await (const chunk of response.textStream) {
+        process.stdout.write(chunk);
+        activitiesText += chunk;
+      }
+      await recordAgentEnd('weather-agent', agentRunId, { output: activitiesText });
+    } catch (err) {
+      await recordAgentEnd('weather-agent', agentRunId, { error: err });
+      throw err;
     }
 
     return {
@@ -180,7 +207,7 @@ const planPacking = createStep({
     activities: z.string(),
     packingAdvice: z.string(),
   }),
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, runId }) => {
     if (!inputData) {
       throw new Error('Activities data not found');
     }
@@ -190,6 +217,7 @@ const planPacking = createStep({
       throw new Error('Packing agent not found');
     }
 
+    const agentRunId = `${runId}-plan-packing`;
     const prompt = `Based on this forecast and these planned activities, provide a short packing checklist and one or two practical tips.
 
 Forecast:
@@ -205,18 +233,25 @@ Packing checklist:
 Practical tips:
 - tip`;
 
-    const response = await agent.stream([
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ]);
+    await recordAgentStart('packing-agent', agentRunId, { activitiesLength: inputData.activities.length });
 
     let packingAdviceText = '';
+    try {
+      const response = await agent.stream([
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ]);
 
-    for await (const chunk of response.textStream) {
-      process.stdout.write(chunk);
-      packingAdviceText += chunk;
+      for await (const chunk of response.textStream) {
+        process.stdout.write(chunk);
+        packingAdviceText += chunk;
+      }
+      await recordAgentEnd('packing-agent', agentRunId, { output: packingAdviceText });
+    } catch (err) {
+      await recordAgentEnd('packing-agent', agentRunId, { error: err });
+      throw err;
     }
 
     return {
@@ -235,7 +270,23 @@ const weatherWorkflow = createWorkflow({
     activities: z.string(),
     packingAdvice: z.string(),
   }),
+  options: {
+    onFinish: async (result) => {
+      try {
+        await recordEnd(result.runId, {
+          status: result.status,
+          output: result.result,
+          steps: result.steps,
+        });
+      } catch (err) {
+        // ignore metrics errors
+        // eslint-disable-next-line no-console
+        console.error('Failed to record workflow end', err);
+      }
+    },
+  },
 })
+  .then(metricsStart)
   .then(fetchWeather)
   .then(planActivities)
   .then(planPacking);

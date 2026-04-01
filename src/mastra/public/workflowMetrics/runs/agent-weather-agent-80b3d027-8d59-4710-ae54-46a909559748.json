@@ -1,0 +1,14 @@
+{
+  "type": "agent",
+  "agentId": "weather-agent",
+  "runId": "80b3d027-8d59-4710-ae54-46a909559748",
+  "endTime": "2026-03-31T15:32:29.253Z",
+  "output": "Current weather for Berlin:\n- Conditions: slight rain showers\n- Temperature: 8.6°C (feels like 4.7°C)\n- Humidity: 66%\n- Wind: 14.8 km/h, gusts up to 44.3 km/h\n\nAdvice: light rain — bring an umbrella or waterproof jacket; gusty winds may make it feel colder.\n\nWould you like an hourly forecast, a multi-day forecast, or activity suggestions based on this weather?",
+  "usage": {
+    "inputTokens": 517,
+    "outputTokens": 742,
+    "totalTokens": 1259,
+    "reasoningTokens": 576,
+    "cachedInputTokens": 0
+  }
+}

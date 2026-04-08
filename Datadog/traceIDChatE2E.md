@@ -1915,3 +1915,41 @@ Feature flags: "feature-x-enabled", "beta-user"
 Request types: "user-request", "batch-job", "scheduled-task"
 Priority levels: "priority-high", "priority-low"
 Experiments: "experiment-v1", "control-group", "treatment-a"
+
+
+
+The problem is that the requestContext object is created at module level but never passed to agent.generate(). It just sits unused. requestContextKeys only extracts values when a RequestContext is actually provided at the call site.
+
+For workflows, you're likely already passing requestContext to run.start(). For direct agent calls, it's missing.
+
+Let me check where the agent is called:
+
+The root cause is two-fold:
+
+The module-level requestContext with TestID is never passed to agent.stream() or any call — it just sits unused
+The workflow step's execute signature uses a second context?:any parameter instead of destructuring requestContext from the first argument, and still doesn't pass it to agent.stream()
+The fix: generate TestID per-request in middleware (so it works for all requests), fix the step signature, and pass requestContext to agent.stream().
+
+Now I have the full picture. Here are the two fixes:
+
+index.ts: Move TestID generation into server middleware so every request gets a unique ID in its RequestContext
+weather-workflow.ts: Fix the planActivities execute signature to receive requestContext and pass it to agent.stream()
+Now pass requestContext to agent.stream() in the workflow step:
+
+Edited
+weather-workflow.ts+1-0
+Here's what changed and why:
+
+index.ts — Removed the static module-level requestContext/TestID (they were never connected to any request). Replaced with server middleware that runs on every incoming request and:
+
+Generates a fresh TestID = crypto.randomUUID() per request
+Sets all values on the RequestContext Mastra automatically provides per-request
+This means every agent call, tool call, and workflow step triggered via the Mastra server automatically gets a unique TestID in its RequestContext, which requestContextKeys then extracts as metadata on all spans.
+
+weather-workflow.ts — Fixed the planActivities execute signature from (args, context?:any) → ({ inputData, mastra, requestContext }), and passed requestContext to agent.stream() so the trace context flows through correctly.
+
+Perfect :) please create a document called Trace ID. and keep it in docs folder.
+
+Any person in my team want to integrate this in mastra or into their agent he should understand what to do clearly
+
+Created docs/Trace-ID.md. It covers:
